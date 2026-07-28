@@ -1,0 +1,1232 @@
+{
+  "slug": "analyze-project",
+  "metadata": {
+    "slug": "analyze-project",
+    "skill_name": "Forensic Root Cause Analyst",
+    "skill_goal": "Analyze AI-assisted coding sessions in brain/ to produce diagnostic reports explaining what happened, why, who/what caused it, and what should change next time.",
+    "tags": [
+      "analysis",
+      "diagnostics",
+      "meta",
+      "root-cause",
+      "project-health",
+      "session-review"
+    ],
+    "control_flow_features": {
+      "has_branch": true,
+      "has_loop": true,
+      "has_tool_call": true,
+      "touches_sensitive_resources": true
+    },
+    "scene_profile": {
+      "PREPARE": 1,
+      "ACQUIRE": 1,
+      "REASON": 1,
+      "ACT": 1,
+      "FINALIZE": 1
+    },
+    "resource_scopes": [
+      "MEMORY",
+      "LOCAL_FS",
+      "MEMORY",
+      "MEMORY",
+      "LOCAL_FS",
+      "LOCAL_FS",
+      "LOCAL_FS",
+      "MEMORY",
+      "MEMORY",
+      "MEMORY",
+      "MEMORY",
+      "MEMORY",
+      "MEMORY",
+      "MEMORY",
+      "MEMORY",
+      "MEMORY",
+      "LOCAL_FS",
+      "LOCAL_FS",
+      "LOCAL_FS",
+      "LOCAL_FS",
+      "LOCAL_FS",
+      "LOCAL_FS",
+      "LOCAL_FS",
+      "LOCAL_FS",
+      "LOCAL_FS",
+      "LOCAL_FS",
+      "LOCAL_FS",
+      "LOCAL_FS",
+      "LOCAL_FS",
+      "MEMORY"
+    ],
+    "dependencies": [
+      "brain/ directory structure",
+      "conversation artifacts",
+      "metadata files"
+    ],
+    "intent_signature": [
+      "analyze",
+      "diagnose",
+      "report",
+      "root-cause",
+      "session-review"
+    ],
+    "top_pattern": "DIAGNOSTIC_ANALYSIS",
+    "source_metadata": {
+      "source_collection": "skillnet",
+      "source_slug": "analyze-project",
+      "source_name": "analyze-project",
+      "source_description": "Forensic root cause analyzer for Antigravity sessions. Classifies scope deltas, rework patterns, root causes, hotspots, and auto-improves prompts/health.",
+      "source_author": "sickn33",
+      "source_category": "Development",
+      "source_stars": 24772,
+      "source_url": "https://github.com/sickn33/antigravity-awesome-skills/blob/d50150fb4e6eb5c98ac05c9cc0dc75b75b363970/skills/analyze-project",
+      "has_raw_skill_md": true
+    },
+    "collection_evaluation": {
+      "safety": {
+        "level": "Good",
+        "reason": "The SKILL.md describes a read-and-analyze workflow (reading ~/.gemini/antigravity/brain/ artifacts and producing a report) and contains no destructive actions or requests for sensitive credentials, so it is benign by design."
+      },
+      "completeness": {
+        "level": "Good",
+        "reason": "The document provides a detailed 10-step forensic workflow, lists required artifacts (task.md, implementation_plan.md, walkthrough.md, metadata, resolved snapshots), scoring rubrics, heuristics, and a full report template, covering inputs and expected outputs."
+      },
+      "executability": {
+        "level": "Good",
+        "reason": "This is an instruction-only skill with concrete actionable steps (exact artifact names, fields to extract, scoring rules, and output file path session_analysis_report.md) that an agent can follow using typical LLM/file-access capabilities."
+      },
+      "cost_awareness": {
+        "level": "Good",
+        "reason": "The task is primarily file analysis and report generation (no heavy compute or external services referenced), so it is inherently low-cost even though the doc does not explicitly prescribe batching or rate limits."
+      },
+      "maintainability": {
+        "level": "Good",
+        "reason": "The workflow is modular and well-structured (clearly separated steps, confidence levels, and report sections) with defined outputs and mapping from observations to recommendations, making it straightforward to update or extend."
+      }
+    }
+  },
+  "source_metadata": {
+    "source_collection": "skillnet",
+    "source_slug": "analyze-project",
+    "source_name": "analyze-project",
+    "source_description": "Forensic root cause analyzer for Antigravity sessions. Classifies scope deltas, rework patterns, root causes, hotspots, and auto-improves prompts/health.",
+    "source_author": "sickn33",
+    "source_category": "Development",
+    "source_stars": 24772,
+    "source_url": "https://github.com/sickn33/antigravity-awesome-skills/blob/d50150fb4e6eb5c98ac05c9cc0dc75b75b363970/skills/analyze-project",
+    "has_raw_skill_md": true
+  },
+  "raw_skill_md": "---\nname: analyze-project\ndescription: Forensic root cause analyzer for Antigravity sessions. Classifies scope deltas, rework patterns, root causes, hotspots, and auto-improves prompts/health.\nversion: \"1.0\"\ntags: [analysis, diagnostics, meta, root-cause, project-health, session-review]\n---\n\n# /analyze-project — Root Cause Analyst Workflow\n\nAnalyze AI-assisted coding sessions in `brain/` and produce a diagnostic report that explains not just **what happened**, but **why it happened**, **who/what caused it**, and **what should change next time**.\n\nThis workflow is not a simple metrics dashboard.\nIt is a forensic analysis workflow for AI coding sessions.\n\n---\n\n## Primary Objective\n\nFor each session, determine:\n\n1. What changed from the initial ask to the final executed work\n2. Whether the change was caused primarily by:\n   - the user/spec\n   - the agent\n   - the codebase/repo\n   - testing/verification\n   - legitimate task complexity\n3. Whether the original prompt was sufficient for the actual job\n4. Which subsystems or files repeatedly correlate with struggle\n5. What concrete changes would most improve future sessions\n\n---\n\n## Core Principles\n\n- Treat `.resolved.N` counts as **signals of iteration intensity**, not proof of failure\n- Do not label struggle based on counts alone; classify the **shape** of rework\n- Separate **human-added scope** from **necessary discovered scope**\n- Separate **agent error** from **repo friction**\n- Every diagnosis must include **evidence**\n- Every recommendation must map to a specific observed pattern\n- Use confidence levels:\n  - **High** = directly supported by artifact contents or timestamps\n  - **Medium** = supported by multiple indirect signals\n  - **Low** = plausible inference, not directly proven\n\n---\n\n## Step 1: Discovery — Find Relevant Conversations\n\n1. Read the conversation summaries available in the system context.\n2. List all subdirectories in:\n   `~/.gemini/antigravity/brain/\n3. Build a **Conversation Index** by cross-referencing summaries with UUID folders.\n4. Record for each conversation:\n   - `conversation_id`\n   - `title`\n   - `objective`\n   - `created`\n   - `last_modified`\n5. If the user supplied a keyword/path, filter on that. Otherwise analyze all workspace conversations.\n\n> Output: indexed list of conversations to analyze.\n\n---\n\n## Step 2: Artifact Extraction — Build Session Evidence\n\nFor each conversation, read all structured artifacts that exist.\n\n### 2a. Core Artifacts\n- `task.md`\n- `implementation_plan.md`\n- `walkthrough.md`\n\n### 2b. Metadata\n- `*.metadata.json`\n\n### 2c. Version Snapshots\n- `task.md.resolved.0 ... N`\n- `implementation_plan.md.resolved.0 ... N`\n- `walkthrough.md.resolved.0 ... N`\n\n### 2d. Additional Signals\n- other `.md` artifacts\n- report/evaluation files\n- timestamps across artifact updates\n- file/folder names mentioned in plans and walkthroughs\n- repeated subsystem references\n- explicit testing/validation language\n- explicit non-goals or constraints, if present\n\n### 2e. Record Per Conversation\n\n#### Presence / Lifecycle\n- `has_task`\n- `has_plan`\n- `has_walkthrough`\n- `is_completed`\n- `is_abandoned_candidate` = has task but no walkthrough\n\n#### Revision / Change Volume\n- `task_versions`\n- `plan_versions`\n- `walkthrough_versions`\n- `extra_artifacts`\n\n#### Scope\n- `task_items_initial`\n- `task_items_final`\n- `task_completed_pct`\n- `scope_delta_raw`\n- `scope_creep_pct_raw`\n\n#### Timing\n- `created_at`\n- `completed_at`\n- `duration_minutes`\n\n#### Content / Quality Signals\n- `objective_text`\n- `initial_plan_summary`\n- `final_plan_summary`\n- `initial_task_excerpt`\n- `final_task_excerpt`\n- `walkthrough_summary`\n- `mentioned_files_or_subsystems`\n- `validation_requirements_present`\n- `acceptance_criteria_present`\n- `non_goals_present`\n- `scope_boundaries_present`\n- `file_targets_present`\n- `constraints_present`\n\n---\n\n## Step 3: Prompt Sufficiency Analysis\n\nFor each conversation, score the opening objective/request on a 0–2 scale for each dimension:\n\n- **Clarity** — is the ask understandable?\n- **Boundedness** — are scope limits defined?\n- **Testability** — are success conditions or acceptance criteria defined?\n- **Architectural specificity** — are files/modules/systems identified?\n- **Constraint awareness** — are non-goals, constraints, or environment details included?\n- **Dependency awareness** — does the prompt acknowledge affected systems or hidden coupling?\n\nCreate:\n- `prompt_sufficiency_score`\n- `prompt_sufficiency_band` = High / Medium / Low\n\nThen note which missing ingredients likely contributed to later friction.\n\nImportant:\nDo not assume a low-detail prompt is bad by default.\nShort prompts can still be good if the task is narrow and the repo context is obvious.\n\n---\n\n## Step 4: Scope Change Classification\n\nDo not treat all scope growth as the same.\n\nFor each conversation, classify scope delta into:\n\n### 4a. Human-Added Scope\nNew items clearly introduced beyond the initial ask.\nExamples:\n- optional enhancements\n- follow-on refactors\n- “while we are here” additions\n- cosmetic or adjacent work added later\n\n### 4b. Necessary Discovered Scope\nWork that was not in the opening ask but appears required to complete it correctly.\nExamples:\n- dependency fixes\n- required validation work\n- hidden integration tasks\n- migration fallout\n- coupled module updates\n\n### 4c. Agent-Introduced Scope\nWork that appears not requested and not necessary, likely introduced by agent overreach.\n\nFor each conversation record:\n- `scope_change_type_primary`\n- `scope_change_type_secondary` (optional)\n- `scope_change_confidence`\n- evidence for classification\n\n---\n\n## Step 5: Rework Shape Analysis\n\nDo not just count revisions. Determine the **shape** of session rework.\n\nClassify each conversation into one of these patterns:\n\n- **Clean execution** — little change, smooth completion\n- **Early replan then stable finish** — plan changed early, then execution converged\n- **Progressive scope expansion** — work kept growing throughout the session\n- **Reopen/reclose churn** — repeated task adjustments/backtracking\n- **Late-stage verification churn** — implementation mostly done, but testing/validation caused loops\n- **Abandoned mid-flight** — work started but did not reach walkthrough\n- **Exploratory / research session** — iterations are high but expected due to problem discovery\n\nRecord:\n- `rework_shape`\n- `rework_shape_confidence`\n- supporting evidence\n\n---\n\n## Step 6: Root Cause Analysis\n\nFor every non-clean session, assign:\n\n### 6a. Primary Root Cause\nChoose one:\n- `SPEC_AMBIGUITY`\n- `HUMAN_SCOPE_CHANGE`\n- `REPO_FRAGILITY`\n- `AGENT_ARCHITECTURAL_ERROR`\n- `VERIFICATION_CHURN`\n- `LEGITIMATE_TASK_COMPLEXITY`\n\n### 6b. Secondary Root Cause\nOptional if a second factor materially contributed.\n\n### 6c. Evidence Requirements\nEvery root cause assignment must include:\n- evidence from artifacts or metadata\n- why competing causes were rejected\n- confidence level\n\n### 6d. Root Cause Heuristics\n\n#### SPEC_AMBIGUITY\nUse when the opening ask lacked boundaries, targets, criteria, or constraints, and the plan had to invent them.\n\n#### HUMAN_SCOPE_CHANGE\nUse when the task set expanded due to new asks, broadened goals, or post-hoc additions.\n\n#### REPO_FRAGILITY\nUse when hidden coupling, unclear architecture, brittle files, or environmental issues forced extra work.\n\n#### AGENT_ARCHITECTURAL_ERROR\nUse when the agent chose the wrong approach, wrong files, wrong assumptions, or hallucinated structure.\n\n#### VERIFICATION_CHURN\nUse when implementation mostly succeeded but tests, validation, QA, or fixes created repeated loops.\n\n#### LEGITIMATE_TASK_COMPLEXITY\nUse when revisions were reasonable given the difficulty and do not strongly indicate avoidable failure.\n\n---\n\n## Step 7: Subsystem / File Clustering\n\nAcross all conversations, cluster repeated struggle by subsystem, folder, or file mentions.\n\nExamples:\n- `frontend/auth/*`\n- `db.py`\n- `ui.py`\n- `video_pipeline/*`\n\nFor each cluster, calculate:\n- number of conversations touching it\n- average revisions\n- completion rate\n- abandonment rate\n- common root causes\n\nOutput the top recurring friction zones.\n\nGoal:\nIdentify whether struggle is prompt-driven, agent-driven, or concentrated in specific repo areas.\n\n---\n\n## Step 8: Comparative Cohort Analysis\n\nCompare these cohorts:\n\n- first-shot successes vs re-planned sessions\n- completed vs abandoned\n- high prompt sufficiency vs low prompt sufficiency\n- narrow-scope vs high-scope-growth\n- short sessions vs long sessions\n- low-friction subsystems vs high-friction subsystems\n\nFor each comparison, identify:\n- what differs materially\n- which prompt traits correlate with smoother execution\n- which repo traits correlate with repeated struggle\n\nDo not merely restate averages.\nExtract causal-looking patterns cautiously and label them as inference where appropriate.\n\n---\n\n## Step 9: Non-Obvious Findings\n\nGenerate 3–7 findings that are not simple metric restatements.\n\nGood examples:\n- “Most replans happen in sessions with weak file targeting, not weak acceptance criteria.”\n- “Scope growth usually begins after the first successful implementation, suggesting post-success human expansion.”\n- “Auth-related sessions cluster around repo fragility rather than agent hallucination.”\n- “Abandoned work is strongly associated with missing validation criteria.”\n\nBad examples:\n- “Some sessions had many revisions.”\n- “Some sessions were longer than others.”\n\nEach finding must include:\n- observation\n- why it matters\n- evidence\n- confidence\n\n---\n\n## Step 10: Report Generation\n\nCreate `session_analysis_report.md` in the current conversation’s brain folder.\n\nUse this structure:\n\n# 📊 Session Analysis Report — [Project Name]\n\n**Generated**: [timestamp]\n**Conversations Analyzed**: [N]\n**Date Range**: [earliest] → [latest]\n\n---\n\n## Executive Summary\n\n| Metric | Value | Rating |\n|:---|:---|:---|\n| First-Shot Success Rate | X% | 🟢/🟡/🔴 |\n| Completion Rate | X% | 🟢/🟡/🔴 |\n| Avg Scope Growth | X% | 🟢/🟡/🔴 |\n| Replan Rate | X% | 🟢/🟡/🔴 |\n| Median Duration | Xm | — |\n| Avg Revision Intensity | X | 🟢/🟡/🔴 |\n\nThen include a short narrative summary:\n- what is going well\n- what is breaking down\n- whether the main issue is prompt quality, repo fragility, or workflow discipline\n\n---\n\n## Root Cause Breakdown\n\n| Root Cause | Count | % | Notes |\n|:---|:---|:---|:---|\n| Spec Ambiguity | X | X% | ... |\n| Human Scope Change | X | X% | ... |\n| Repo Fragility | X | X% | ... |\n| Agent Architectural Error | X | X% | ... |\n| Verification Churn | X | X% | ... |\n| Legitimate Task Complexity | X | X% | ... |\n\n---\n\n## Prompt Sufficiency Analysis\n\n- common traits of high-sufficiency prompts\n- common missing inputs in low-sufficiency prompts\n- which missing prompt ingredients correlate most with replanning or abandonment\n\n---\n\n## Scope Change Analysis\n\nSeparate:\n- Human-added scope\n- Necessary discovered scope\n- Agent-introduced scope\n\nShow top offenders in each category.\n\n---\n\n## Rework Shape Analysis\n\nSummarize how sessions tend to fail:\n- early replan then recover\n- progressive scope expansion\n- late verification churn\n- abandonments\n- reopen/reclose cycles\n\n---\n\n## Friction Hotspots\n\nCluster repeated struggle by subsystem/file/domain.\nShow which areas correlate with:\n- replanning\n- abandonment\n- verification churn\n- agent architectural mistakes\n\n---\n\n## First-Shot Successes\n\nList the cleanest sessions and extract what made them work:\n- scope boundaries\n- acceptance criteria\n- file targeting\n- validation clarity\n- narrowness of change surface\n\n---\n\n## Non-Obvious Findings\n\nList 3–7 high-value findings with evidence and confidence.\n\n---\n\n## Recommendations\n\nEach recommendation must use this format:\n\n### Recommendation [N]\n- **Observed pattern**\n- **Likely cause**\n- **Evidence**\n- **Change to make**\n- **Expected benefit**\n- **Confidence**\n\nRecommendations must be specific, not generic.\n\n---\n\n## Per-Conversation Breakdown\n\n| # | Title | Duration | Scope Δ | Plan Revs | Task Revs | Root Cause | Rework Shape | Complete? |\n|:---|:---|:---|:---|:---|:---|:---|:---|:---|\n\nAdd short notes only where meaningful.\n\n---\n\n## Step 11: Auto-Optimize — Improve Future Sessions\n\n### 11a. Update Project Health State\n# Example path (update to your actual location):\n# `~/.gemini/antigravity/.agent/skills/project-health-state/SKILL.md`\n\nUpdate:\n- session analysis metrics\n- recurring fragile files/subsystems\n- recurring failure modes\n- last updated timestamp\n\n### 11b. Generate Prompt Improvement Guidance\nCreate `prompt_improvement_tips.md`\n\nDo not give generic advice.\nInstead extract:\n- traits of high-sufficiency prompts\n- examples of effective scope boundaries\n- examples of good acceptance criteria\n- examples of useful file targeting\n- common missing details that led to replans\n\n### 11c. Suggest Missing Skills / Workflows\nIf multiple struggle sessions cluster around the same subsystem or repeated sequence, recommend:\n- a targeted skill\n- a repeatable workflow\n- a reusable prompt template\n- a repo note / architecture map\n\nOnly recommend workflows when the pattern appears repeatedly.\n\n---\n\n## Final Output Standard\n\nThe workflow must produce:\n1. A metrics summary\n2. A root-cause diagnosis\n3. A subsystem/friction map\n4. A prompt-sufficiency assessment\n5. Evidence-backed recommendations\n6. Non-obvious findings\n\nIf evidence is weak, say so.\nDo not overclaim.\nPrefer explicit uncertainty over fake precision.\n\n\n\n\n\n\n\n\n**How to invoke this skill**  \nJust say any of these in a new conversation:\n- “Run analyze-project on the workspace”\n- “Do a full session analysis report”\n- “Root cause my recent brain/ sessions”\n- “Update project health state”\n\nThe agent will automatically discover and use the skill.\n",
+  "ssl_record": {
+    "skill": {
+      "skill_id": "analyze-project",
+      "skill_name": "Forensic Root Cause Analyst",
+      "skill_goal": "Analyze AI-assisted coding sessions in brain/ to produce diagnostic reports explaining what happened, why, who/what caused it, and what should change next time.",
+      "top_pattern": "DIAGNOSTIC_ANALYSIS",
+      "expected_inputs": [
+        "keyword/path filter (optional)",
+        "brain/ directory access"
+      ],
+      "expected_outputs": [
+        "session_analysis_report.md",
+        "prompt_improvement_tips.md",
+        "updated project health state"
+      ],
+      "dependencies": [
+        "brain/ directory structure",
+        "conversation artifacts",
+        "metadata files"
+      ],
+      "tags": [
+        "analysis",
+        "diagnostics",
+        "meta",
+        "root-cause",
+        "project-health",
+        "session-review"
+      ],
+      "control_flow_features": {
+        "has_branch": true,
+        "has_loop": true,
+        "has_tool_call": true,
+        "touches_sensitive_resources": true
+      },
+      "intent_signature": [
+        "analyze",
+        "diagnose",
+        "report",
+        "root-cause",
+        "session-review"
+      ],
+      "entry_scene_id": "scene_discovery",
+      "subscenes": [
+        "scene_discovery",
+        "scene_extraction",
+        "scene_analysis",
+        "scene_reporting",
+        "scene_optimization"
+      ]
+    },
+    "scenes": [
+      {
+        "scene_id": "scene_discovery",
+        "scene_name": "Conversation Discovery",
+        "scene_goal": "Find and index all relevant conversations in brain/ directory",
+        "scene_type": "PREPARE",
+        "input": [
+          "brain/ directory path",
+          "optional keyword filter"
+        ],
+        "output": "conversation_index",
+        "entry_conditions": [
+          "brain/ directory exists",
+          "read permissions granted"
+        ],
+        "exit_conditions": [
+          "conversation_index built",
+          "filter applied if provided"
+        ],
+        "contained_logic_steps": [
+          "step_read_summaries",
+          "step_list_directories",
+          "step_build_index",
+          "step_filter_conversations"
+        ],
+        "entry_logic_step_id": "step_read_summaries",
+        "next_scene_rules": [
+          {
+            "condition": "conversation_index not empty",
+            "target": "scene_extraction"
+          },
+          {
+            "condition": "default",
+            "target": "END_FAIL"
+          }
+        ]
+      },
+      {
+        "scene_id": "scene_extraction",
+        "scene_name": "Artifact Extraction",
+        "scene_goal": "Extract structured evidence from all conversation artifacts",
+        "scene_type": "ACQUIRE",
+        "input": "conversation_index",
+        "output": "artifact_evidence_collection",
+        "entry_conditions": [
+          "conversation_index available"
+        ],
+        "exit_conditions": [
+          "all artifacts processed",
+          "evidence collection complete"
+        ],
+        "contained_logic_steps": [
+          "step_read_core_artifacts",
+          "step_read_metadata",
+          "step_read_versions",
+          "step_extract_signals",
+          "step_record_conversation"
+        ],
+        "entry_logic_step_id": "step_read_core_artifacts",
+        "next_scene_rules": [
+          {
+            "condition": "artifact_evidence_collection not empty",
+            "target": "scene_analysis"
+          },
+          {
+            "condition": "default",
+            "target": "END_FAIL"
+          }
+        ]
+      },
+      {
+        "scene_id": "scene_analysis",
+        "scene_name": "Multi-Dimensional Analysis",
+        "scene_goal": "Perform comprehensive analysis across all dimensions: prompt sufficiency, scope change, rework shape, root cause, clustering",
+        "scene_type": "REASON",
+        "input": "artifact_evidence_collection",
+        "output": "analysis_results",
+        "entry_conditions": [
+          "artifact_evidence_collection available"
+        ],
+        "exit_conditions": [
+          "all analysis steps completed",
+          "results compiled"
+        ],
+        "contained_logic_steps": [
+          "step_analyze_prompt_sufficiency",
+          "step_classify_scope_change",
+          "step_analyze_rework_shape",
+          "step_assign_root_cause",
+          "step_cluster_subsystems",
+          "step_cohort_analysis",
+          "step_generate_findings"
+        ],
+        "entry_logic_step_id": "step_analyze_prompt_sufficiency",
+        "next_scene_rules": [
+          {
+            "condition": "analysis_results generated",
+            "target": "scene_reporting"
+          },
+          {
+            "condition": "default",
+            "target": "END_FAIL"
+          }
+        ]
+      },
+      {
+        "scene_id": "scene_reporting",
+        "scene_name": "Report Generation",
+        "scene_goal": "Generate comprehensive analysis report with findings and recommendations",
+        "scene_type": "ACT",
+        "input": "analysis_results",
+        "output": "session_analysis_report.md",
+        "entry_conditions": [
+          "analysis_results available"
+        ],
+        "exit_conditions": [
+          "report file created",
+          "all sections populated"
+        ],
+        "contained_logic_steps": [
+          "step_create_report_structure",
+          "step_populate_executive_summary",
+          "step_populate_root_cause_breakdown",
+          "step_populate_prompt_analysis",
+          "step_populate_scope_analysis",
+          "step_populate_rework_analysis",
+          "step_populate_hotspots",
+          "step_populate_successes",
+          "step_populate_findings",
+          "step_populate_recommendations",
+          "step_populate_breakdown_table"
+        ],
+        "entry_logic_step_id": "step_create_report_structure",
+        "next_scene_rules": [
+          {
+            "condition": "report file created successfully",
+            "target": "scene_optimization"
+          },
+          {
+            "condition": "default",
+            "target": "END_FAIL"
+          }
+        ]
+      },
+      {
+        "scene_id": "scene_optimization",
+        "scene_name": "Auto-Optimization",
+        "scene_goal": "Improve future sessions by updating project health state and generating guidance",
+        "scene_type": "FINALIZE",
+        "input": [
+          "analysis_results",
+          "session_analysis_report.md"
+        ],
+        "output": [
+          "updated_project_health_state",
+          "prompt_improvement_tips.md",
+          "skill_recommendations"
+        ],
+        "entry_conditions": [
+          "analysis_results available",
+          "report exists"
+        ],
+        "exit_conditions": [
+          "project health updated",
+          "improvement tips generated",
+          "recommendations created"
+        ],
+        "contained_logic_steps": [
+          "step_update_health_state",
+          "step_generate_prompt_guidance",
+          "step_suggest_missing_skills"
+        ],
+        "entry_logic_step_id": "step_update_health_state",
+        "next_scene_rules": [
+          {
+            "condition": "all optimization steps completed",
+            "target": "END_SUCCESS"
+          },
+          {
+            "condition": "default",
+            "target": "END_FAIL"
+          }
+        ]
+      }
+    ],
+    "logic_steps": [
+      {
+        "logic_step_id": "step_read_summaries",
+        "act_type": "READ",
+        "input_args": [
+          "system_context"
+        ],
+        "output_binding": "conversation_summaries",
+        "actor": "agent",
+        "object": "system_context",
+        "instrument": null,
+        "preconditions": [
+          "system_context accessible"
+        ],
+        "effects": "conversation_summaries = read(system_context)",
+        "next_step_rules": [
+          {
+            "condition": "conversation_summaries not empty",
+            "target": "step_list_directories"
+          },
+          {
+            "condition": "default",
+            "target": "END_FAIL"
+          }
+        ],
+        "resource_scope": "MEMORY",
+        "resource_target": "conversation_summaries"
+      },
+      {
+        "logic_step_id": "step_list_directories",
+        "act_type": "READ",
+        "input_args": [
+          "~/.gemini/antigravity/brain/"
+        ],
+        "output_binding": "brain_subdirectories",
+        "actor": "agent",
+        "object": "filesystem",
+        "instrument": "directory_listing_tool",
+        "preconditions": [
+          "brain directory exists",
+          "read permissions"
+        ],
+        "effects": "brain_subdirectories = list_directories('~/.gemini/antigravity/brain/')",
+        "next_step_rules": [
+          {
+            "condition": "brain_subdirectories not empty",
+            "target": "step_build_index"
+          },
+          {
+            "condition": "default",
+            "target": "END_FAIL"
+          }
+        ],
+        "resource_scope": "LOCAL_FS",
+        "resource_target": "brain directory"
+      },
+      {
+        "logic_step_id": "step_build_index",
+        "act_type": "INFER",
+        "input_args": [
+          "conversation_summaries",
+          "brain_subdirectories"
+        ],
+        "output_binding": "conversation_index",
+        "actor": "agent",
+        "object": "data",
+        "instrument": "cross_reference_algorithm",
+        "preconditions": [
+          "conversation_summaries available",
+          "brain_subdirectories available"
+        ],
+        "effects": "conversation_index = cross_reference(summaries, subdirectories)",
+        "next_step_rules": [
+          {
+            "condition": "conversation_index built",
+            "target": "step_filter_conversations"
+          },
+          {
+            "condition": "default",
+            "target": "END_FAIL"
+          }
+        ],
+        "resource_scope": "MEMORY",
+        "resource_target": "index data"
+      },
+      {
+        "logic_step_id": "step_filter_conversations",
+        "act_type": "SELECT",
+        "input_args": [
+          "conversation_index",
+          "user_keyword_filter"
+        ],
+        "output_binding": "filtered_conversation_index",
+        "actor": "agent",
+        "object": "conversation_index",
+        "instrument": "filter_algorithm",
+        "preconditions": [
+          "conversation_index available"
+        ],
+        "effects": "filtered_conversation_index = apply_filter(conversation_index, user_keyword_filter)",
+        "next_step_rules": [
+          {
+            "condition": "filtered_conversation_index not empty",
+            "target": "step_read_core_artifacts"
+          },
+          {
+            "condition": "default",
+            "target": "END_FAIL"
+          }
+        ],
+        "resource_scope": "MEMORY",
+        "resource_target": "filtered index"
+      },
+      {
+        "logic_step_id": "step_read_core_artifacts",
+        "act_type": "READ",
+        "input_args": [
+          "filtered_conversation_index"
+        ],
+        "output_binding": "core_artifacts_data",
+        "actor": "agent",
+        "object": "filesystem",
+        "instrument": "file_reading_tool",
+        "preconditions": [
+          "filtered_conversation_index available"
+        ],
+        "effects": "core_artifacts_data = read_all_files(['task.md', 'implementation_plan.md', 'walkthrough.md'])",
+        "next_step_rules": [
+          {
+            "condition": "core_artifacts_data collected",
+            "target": "step_read_metadata"
+          },
+          {
+            "condition": "default",
+            "target": "END_FAIL"
+          }
+        ],
+        "resource_scope": "LOCAL_FS",
+        "resource_target": "artifact files"
+      },
+      {
+        "logic_step_id": "step_read_metadata",
+        "act_type": "READ",
+        "input_args": [
+          "filtered_conversation_index"
+        ],
+        "output_binding": "metadata_collection",
+        "actor": "agent",
+        "object": "filesystem",
+        "instrument": "file_reading_tool",
+        "preconditions": [
+          "filtered_conversation_index available"
+        ],
+        "effects": "metadata_collection = read_all_files(['*.metadata.json'])",
+        "next_step_rules": [
+          {
+            "condition": "metadata_collection completed",
+            "target": "step_read_versions"
+          },
+          {
+            "condition": "default",
+            "target": "END_FAIL"
+          }
+        ],
+        "resource_scope": "LOCAL_FS",
+        "resource_target": "metadata files"
+      },
+      {
+        "logic_step_id": "step_read_versions",
+        "act_type": "READ",
+        "input_args": [
+          "filtered_conversation_index"
+        ],
+        "output_binding": "version_snapshots",
+        "actor": "agent",
+        "object": "filesystem",
+        "instrument": "file_reading_tool",
+        "preconditions": [
+          "filtered_conversation_index available"
+        ],
+        "effects": "version_snapshots = read_all_files(['*.resolved.*'])",
+        "next_step_rules": [
+          {
+            "condition": "version_snapshots collected",
+            "target": "step_extract_signals"
+          },
+          {
+            "condition": "default",
+            "target": "END_FAIL"
+          }
+        ],
+        "resource_scope": "LOCAL_FS",
+        "resource_target": "version files"
+      },
+      {
+        "logic_step_id": "step_extract_signals",
+        "act_type": "INFER",
+        "input_args": [
+          "core_artifacts_data",
+          "metadata_collection",
+          "version_snapshots"
+        ],
+        "output_binding": "additional_signals",
+        "actor": "agent",
+        "object": "artifact_data",
+        "instrument": "text_analysis_algorithm",
+        "preconditions": [
+          "core_artifacts_data available",
+          "metadata_collection available",
+          "version_snapshots available"
+        ],
+        "effects": "additional_signals = extract_signals(timestamps, file_mentions, subsystem_references, validation_language)",
+        "next_step_rules": [
+          {
+            "condition": "additional_signals extracted",
+            "target": "step_record_conversation"
+          },
+          {
+            "condition": "default",
+            "target": "END_FAIL"
+          }
+        ],
+        "resource_scope": "MEMORY",
+        "resource_target": "signal data"
+      },
+      {
+        "logic_step_id": "step_record_conversation",
+        "act_type": "UPDATE_STATE",
+        "input_args": [
+          "core_artifacts_data",
+          "metadata_collection",
+          "version_snapshots",
+          "additional_signals"
+        ],
+        "output_binding": "artifact_evidence_collection",
+        "actor": "agent",
+        "object": "evidence_state",
+        "instrument": "data_structure",
+        "preconditions": [
+          "all input data available"
+        ],
+        "effects": "artifact_evidence_collection = compile_evidence(presence_lifecycle, revision_volume, scope, timing, content_quality)",
+        "next_step_rules": [
+          {
+            "condition": "artifact_evidence_collection compiled",
+            "target": "step_analyze_prompt_sufficiency"
+          },
+          {
+            "condition": "default",
+            "target": "END_FAIL"
+          }
+        ],
+        "resource_scope": "MEMORY",
+        "resource_target": "evidence collection"
+      },
+      {
+        "logic_step_id": "step_analyze_prompt_sufficiency",
+        "act_type": "INFER",
+        "input_args": [
+          "artifact_evidence_collection"
+        ],
+        "output_binding": "prompt_sufficiency_scores",
+        "actor": "agent",
+        "object": "evidence",
+        "instrument": "scoring_algorithm",
+        "preconditions": [
+          "artifact_evidence_collection available"
+        ],
+        "effects": "prompt_sufficiency_scores = score_dimensions(clarity, boundedness, testability, architectural_specificity, constraint_awareness, dependency_awareness)",
+        "next_step_rules": [
+          {
+            "condition": "prompt_sufficiency_scores calculated",
+            "target": "step_classify_scope_change"
+          },
+          {
+            "condition": "default",
+            "target": "END_FAIL"
+          }
+        ],
+        "resource_scope": "MEMORY",
+        "resource_target": "scores data"
+      },
+      {
+        "logic_step_id": "step_classify_scope_change",
+        "act_type": "SELECT",
+        "input_args": [
+          "artifact_evidence_collection"
+        ],
+        "output_binding": "scope_change_classifications",
+        "actor": "agent",
+        "object": "evidence",
+        "instrument": "classification_algorithm",
+        "preconditions": [
+          "artifact_evidence_collection available"
+        ],
+        "effects": "scope_change_classifications = classify(human_added_scope, necessary_discovered_scope, agent_introduced_scope)",
+        "next_step_rules": [
+          {
+            "condition": "scope_change_classifications assigned",
+            "target": "step_analyze_rework_shape"
+          },
+          {
+            "condition": "default",
+            "target": "END_FAIL"
+          }
+        ],
+        "resource_scope": "MEMORY",
+        "resource_target": "classifications"
+      },
+      {
+        "logic_step_id": "step_analyze_rework_shape",
+        "act_type": "INFER",
+        "input_args": [
+          "artifact_evidence_collection"
+        ],
+        "output_binding": "rework_shape_analysis",
+        "actor": "agent",
+        "object": "evidence",
+        "instrument": "pattern_recognition",
+        "preconditions": [
+          "artifact_evidence_collection available"
+        ],
+        "effects": "rework_shape_analysis = identify_patterns(clean_execution, early_replan, progressive_expansion, reopen_churn, verification_churn, abandoned, exploratory)",
+        "next_step_rules": [
+          {
+            "condition": "rework_shape_analysis completed",
+            "target": "step_assign_root_cause"
+          },
+          {
+            "condition": "default",
+            "target": "END_FAIL"
+          }
+        ],
+        "resource_scope": "MEMORY",
+        "resource_target": "shape analysis"
+      },
+      {
+        "logic_step_id": "step_assign_root_cause",
+        "act_type": "SELECT",
+        "input_args": [
+          "artifact_evidence_collection",
+          "scope_change_classifications",
+          "rework_shape_analysis"
+        ],
+        "output_binding": "root_cause_assignments",
+        "actor": "agent",
+        "object": "analysis_data",
+        "instrument": "decision_algorithm",
+        "preconditions": [
+          "all input data available"
+        ],
+        "effects": "root_cause_assignments = assign_causes(SPEC_AMBIGUITY, HUMAN_SCOPE_CHANGE, REPO_FRAGILITY, AGENT_ARCHITECTURAL_ERROR, VERIFICATION_CHURN, LEGITIMATE_TASK_COMPLEXITY)",
+        "next_step_rules": [
+          {
+            "condition": "root_cause_assignments made",
+            "target": "step_cluster_subsystems"
+          },
+          {
+            "condition": "default",
+            "target": "END_FAIL"
+          }
+        ],
+        "resource_scope": "MEMORY",
+        "resource_target": "root cause data"
+      },
+      {
+        "logic_step_id": "step_cluster_subsystems",
+        "act_type": "INFER",
+        "input_args": [
+          "artifact_evidence_collection"
+        ],
+        "output_binding": "subsystem_clusters",
+        "actor": "agent",
+        "object": "evidence",
+        "instrument": "clustering_algorithm",
+        "preconditions": [
+          "artifact_evidence_collection available"
+        ],
+        "effects": "subsystem_clusters = cluster_by_mentions(frontend/auth/*, db.py, ui.py, video_pipeline/*)",
+        "next_step_rules": [
+          {
+            "condition": "subsystem_clusters identified",
+            "target": "step_cohort_analysis"
+          },
+          {
+            "condition": "default",
+            "target": "END_FAIL"
+          }
+        ],
+        "resource_scope": "MEMORY",
+        "resource_target": "cluster data"
+      },
+      {
+        "logic_step_id": "step_cohort_analysis",
+        "act_type": "COMPARE",
+        "input_args": [
+          "artifact_evidence_collection",
+          "prompt_sufficiency_scores",
+          "root_cause_assignments",
+          "subsystem_clusters"
+        ],
+        "output_binding": "cohort_comparisons",
+        "actor": "agent",
+        "object": "analysis_data",
+        "instrument": "comparative_analysis",
+        "preconditions": [
+          "all input data available"
+        ],
+        "effects": "cohort_comparisons = compare(first_shot_successes, completed_vs_abandoned, high_vs_low_sufficiency, narrow_vs_high_scope, short_vs_long, low_vs_high_friction)",
+        "next_step_rules": [
+          {
+            "condition": "cohort_comparisons completed",
+            "target": "step_generate_findings"
+          },
+          {
+            "condition": "default",
+            "target": "END_FAIL"
+          }
+        ],
+        "resource_scope": "MEMORY",
+        "resource_target": "comparison data"
+      },
+      {
+        "logic_step_id": "step_generate_findings",
+        "act_type": "INFER",
+        "input_args": [
+          "all_analysis_data"
+        ],
+        "output_binding": "non_obvious_findings",
+        "actor": "agent",
+        "object": "analysis_results",
+        "instrument": "insight_generation",
+        "preconditions": [
+          "all analysis data available"
+        ],
+        "effects": "non_obvious_findings = generate_3_to_7_findings(observation, why_it_matters, evidence, confidence)",
+        "next_step_rules": [
+          {
+            "condition": "non_obvious_findings generated",
+            "target": "step_create_report_structure"
+          },
+          {
+            "condition": "default",
+            "target": "END_FAIL"
+          }
+        ],
+        "resource_scope": "MEMORY",
+        "resource_target": "findings data"
+      },
+      {
+        "logic_step_id": "step_create_report_structure",
+        "act_type": "WRITE",
+        "input_args": [
+          "analysis_results"
+        ],
+        "output_binding": "report_file_handle",
+        "actor": "agent",
+        "object": "filesystem",
+        "instrument": "file_writing_tool",
+        "preconditions": [
+          "analysis_results available",
+          "write permissions"
+        ],
+        "effects": "report_file_handle = create_file('session_analysis_report.md')",
+        "next_step_rules": [
+          {
+            "condition": "report_file_handle created",
+            "target": "step_populate_executive_summary"
+          },
+          {
+            "condition": "default",
+            "target": "END_FAIL"
+          }
+        ],
+        "resource_scope": "LOCAL_FS",
+        "resource_target": "report file"
+      },
+      {
+        "logic_step_id": "step_populate_executive_summary",
+        "act_type": "WRITE",
+        "input_args": [
+          "analysis_results",
+          "report_file_handle"
+        ],
+        "output_binding": "updated_report",
+        "actor": "agent",
+        "object": "report_file",
+        "instrument": "template_filling",
+        "preconditions": [
+          "analysis_results available",
+          "report_file_handle valid"
+        ],
+        "effects": "updated_report = write_executive_summary(metrics, ratings, narrative_summary)",
+        "next_step_rules": [
+          {
+            "condition": "executive_summary written",
+            "target": "step_populate_root_cause_breakdown"
+          },
+          {
+            "condition": "default",
+            "target": "END_FAIL"
+          }
+        ],
+        "resource_scope": "LOCAL_FS",
+        "resource_target": "report content"
+      },
+      {
+        "logic_step_id": "step_populate_root_cause_breakdown",
+        "act_type": "WRITE",
+        "input_args": [
+          "root_cause_assignments",
+          "report_file_handle"
+        ],
+        "output_binding": "updated_report",
+        "actor": "agent",
+        "object": "report_file",
+        "instrument": "table_generation",
+        "preconditions": [
+          "root_cause_assignments available",
+          "report_file_handle valid"
+        ],
+        "effects": "updated_report = write_root_cause_table(counts, percentages, notes)",
+        "next_step_rules": [
+          {
+            "condition": "root_cause_breakdown written",
+            "target": "step_populate_prompt_analysis"
+          },
+          {
+            "condition": "default",
+            "target": "END_FAIL"
+          }
+        ],
+        "resource_scope": "LOCAL_FS",
+        "resource_target": "report content"
+      },
+      {
+        "logic_step_id": "step_populate_prompt_analysis",
+        "act_type": "WRITE",
+        "input_args": [
+          "prompt_sufficiency_scores",
+          "report_file_handle"
+        ],
+        "output_binding": "updated_report",
+        "actor": "agent",
+        "object": "report_file",
+        "instrument": "analysis_writing",
+        "preconditions": [
+          "prompt_sufficiency_scores available",
+          "report_file_handle valid"
+        ],
+        "effects": "updated_report = write_prompt_analysis(common_traits, missing_inputs, correlations)",
+        "next_step_rules": [
+          {
+            "condition": "prompt_analysis written",
+            "target": "step_populate_scope_analysis"
+          },
+          {
+            "condition": "default",
+            "target": "END_FAIL"
+          }
+        ],
+        "resource_scope": "LOCAL_FS",
+        "resource_target": "report content"
+      },
+      {
+        "logic_step_id": "step_populate_scope_analysis",
+        "act_type": "WRITE",
+        "input_args": [
+          "scope_change_classifications",
+          "report_file_handle"
+        ],
+        "output_binding": "updated_report",
+        "actor": "agent",
+        "object": "report_file",
+        "instrument": "analysis_writing",
+        "preconditions": [
+          "scope_change_classifications available",
+          "report_file_handle valid"
+        ],
+        "effects": "updated_report = write_scope_analysis(human_added, necessary_discovered, agent_introduced, top_offenders)",
+        "next_step_rules": [
+          {
+            "condition": "scope_analysis written",
+            "target": "step_populate_rework_analysis"
+          },
+          {
+            "condition": "default",
+            "target": "END_FAIL"
+          }
+        ],
+        "resource_scope": "LOCAL_FS",
+        "resource_target": "report content"
+      },
+      {
+        "logic_step_id": "step_populate_rework_analysis",
+        "act_type": "WRITE",
+        "input_args": [
+          "rework_shape_analysis",
+          "report_file_handle"
+        ],
+        "output_binding": "updated_report",
+        "actor": "agent",
+        "object": "report_file",
+        "instrument": "analysis_writing",
+        "preconditions": [
+          "rework_shape_analysis available",
+          "report_file_handle valid"
+        ],
+        "effects": "updated_report = write_rework_analysis(early_replan, progressive_expansion, verification_churn, abandonments, reopen_cycles)",
+        "next_step_rules": [
+          {
+            "condition": "rework_analysis written",
+            "target": "step_populate_hotspots"
+          },
+          {
+            "condition": "default",
+            "target": "END_FAIL"
+          }
+        ],
+        "resource_scope": "LOCAL_FS",
+        "resource_target": "report content"
+      },
+      {
+        "logic_step_id": "step_populate_hotspots",
+        "act_type": "WRITE",
+        "input_args": [
+          "subsystem_clusters",
+          "report_file_handle"
+        ],
+        "output_binding": "updated_report",
+        "actor": "agent",
+        "object": "report_file",
+        "instrument": "analysis_writing",
+        "preconditions": [
+          "subsystem_clusters available",
+          "report_file_handle valid"
+        ],
+        "effects": "updated_report = write_friction_hotspots(clusters, correlations_with_replanning, abandonment, verification_churn, agent_mistakes)",
+        "next_step_rules": [
+          {
+            "condition": "hotspots written",
+            "target": "step_populate_successes"
+          },
+          {
+            "condition": "default",
+            "target": "END_FAIL"
+          }
+        ],
+        "resource_scope": "LOCAL_FS",
+        "resource_target": "report content"
+      },
+      {
+        "logic_step_id": "step_populate_successes",
+        "act_type": "WRITE",
+        "input_args": [
+          "artifact_evidence_collection",
+          "report_file_handle"
+        ],
+        "output_binding": "updated_report",
+        "actor": "agent",
+        "object": "report_file",
+        "instrument": "analysis_writing",
+        "preconditions": [
+          "artifact_evidence_collection available",
+          "report_file_handle valid"
+        ],
+        "effects": "updated_report = write_first_shot_successes(clean_sessions, scope_boundaries, acceptance_criteria, file_targeting, validation_clarity, narrowness)",
+        "next_step_rules": [
+          {
+            "condition": "successes written",
+            "target": "step_populate_findings"
+          },
+          {
+            "condition": "default",
+            "target": "END_FAIL"
+          }
+        ],
+        "resource_scope": "LOCAL_FS",
+        "resource_target": "report content"
+      },
+      {
+        "logic_step_id": "step_populate_findings",
+        "act_type": "WRITE",
+        "input_args": [
+          "non_obvious_findings",
+          "report_file_handle"
+        ],
+        "output_binding": "updated_report",
+        "actor": "agent",
+        "object": "report_file",
+        "instrument": "analysis_writing",
+        "preconditions": [
+          "non_obvious_findings available",
+          "report_file_handle valid"
+        ],
+        "effects": "updated_report = write_findings(3_to_7_items_with_evidence_and_confidence)",
+        "next_step_rules": [
+          {
+            "condition": "findings written",
+            "target": "step_populate_recommendations"
+          },
+          {
+            "condition": "default",
+            "target": "END_FAIL"
+          }
+        ],
+        "resource_scope": "LOCAL_FS",
+        "resource_target": "report content"
+      },
+      {
+        "logic_step_id": "step_populate_recommendations",
+        "act_type": "WRITE",
+        "input_args": [
+          "analysis_results",
+          "report_file_handle"
+        ],
+        "output_binding": "updated_report",
+        "actor": "agent",
+        "object": "report_file",
+        "instrument": "template_filling",
+        "preconditions": [
+          "analysis_results available",
+          "report_file_handle valid"
+        ],
+        "effects": "updated_report = write_recommendations(observed_pattern, likely_cause, evidence, change_to_make, expected_benefit, confidence)",
+        "next_step_rules": [
+          {
+            "condition": "recommendations written",
+            "target": "step_populate_breakdown_table"
+          },
+          {
+            "condition": "default",
+            "target": "END_FAIL"
+          }
+        ],
+        "resource_scope": "LOCAL_FS",
+        "resource_target": "report content"
+      },
+      {
+        "logic_step_id": "step_populate_breakdown_table",
+        "act_type": "WRITE",
+        "input_args": [
+          "artifact_evidence_collection",
+          "analysis_results",
+          "report_file_handle"
+        ],
+        "output_binding": "completed_report",
+        "actor": "agent",
+        "object": "report_file",
+        "instrument": "table_generation",
+        "preconditions": [
+          "all data available",
+          "report_file_handle valid"
+        ],
+        "effects": "completed_report = write_breakdown_table(title, duration, scope_delta, plan_revs, task_revs, root_cause, rework_shape, complete_status, notes)",
+        "next_step_rules": [
+          {
+            "condition": "breakdown_table written",
+            "target": "step_update_health_state"
+          },
+          {
+            "condition": "default",
+            "target": "END_FAIL"
+          }
+        ],
+        "resource_scope": "LOCAL_FS",
+        "resource_target": "report content"
+      },
+      {
+        "logic_step_id": "step_update_health_state",
+        "act_type": "UPDATE_STATE",
+        "input_args": [
+          "analysis_results",
+          "completed_report"
+        ],
+        "output_binding": "updated_project_health_state",
+        "actor": "agent",
+        "object": "project_health_file",
+        "instrument": "file_writing_tool",
+        "preconditions": [
+          "analysis_results available",
+          "completed_report exists"
+        ],
+        "effects": "updated_project_health_state = update_file('~/.gemini/antigravity/.agent/skills/project-health-state/SKILL.md', session_analysis_metrics, fragile_files, failure_modes, timestamp)",
+        "next_step_rules": [
+          {
+            "condition": "health_state updated",
+            "target": "step_generate_prompt_guidance"
+          },
+          {
+            "condition": "default",
+            "target": "END_FAIL"
+          }
+        ],
+        "resource_scope": "LOCAL_FS",
+        "resource_target": "health state file"
+      },
+      {
+        "logic_step_id": "step_generate_prompt_guidance",
+        "act_type": "WRITE",
+        "input_args": [
+          "analysis_results"
+        ],
+        "output_binding": "prompt_improvement_tips.md",
+        "actor": "agent",
+        "object": "filesystem",
+        "instrument": "file_writing_tool",
+        "preconditions": [
+          "analysis_results available",
+          "write permissions"
+        ],
+        "effects": "prompt_improvement_tips.md = create_file_with_content(high_sufficiency_traits, scope_boundary_examples, acceptance_criteria_examples, file_targeting_examples, common_missing_details)",
+        "next_step_rules": [
+          {
+            "condition": "prompt_guidance generated",
+            "target": "step_suggest_missing_skills"
+          },
+          {
+            "condition": "default",
+            "target": "END_FAIL"
+          }
+        ],
+        "resource_scope": "LOCAL_FS",
+        "resource_target": "guidance file"
+      },
+      {
+        "logic_step_id": "step_suggest_missing_skills",
+        "act_type": "INFER",
+        "input_args": [
+          "analysis_results",
+          "subsystem_clusters"
+        ],
+        "output_binding": "skill_recommendations",
+        "actor": "agent",
+        "object": "analysis_data",
+        "instrument": "pattern_recognition",
+        "preconditions": [
+          "analysis_results available",
+          "subsystem_clusters available"
+        ],
+        "effects": "skill_recommendations = suggest(targeted_skill, repeatable_workflow, reusable_prompt_template, repo_note, architecture_map)",
+        "next_step_rules": [
+          {
+            "condition": "skill_recommendations generated",
+            "target": "END_SUCCESS"
+          },
+          {
+            "condition": "default",
+            "target": "END_FAIL"
+          }
+        ],
+        "resource_scope": "MEMORY",
+        "resource_target": "recommendations data"
+      }
+    ]
+  },
+  "collection_evaluation": {
+    "safety": {
+      "level": "Good",
+      "reason": "The SKILL.md describes a read-and-analyze workflow (reading ~/.gemini/antigravity/brain/ artifacts and producing a report) and contains no destructive actions or requests for sensitive credentials, so it is benign by design."
+    },
+    "completeness": {
+      "level": "Good",
+      "reason": "The document provides a detailed 10-step forensic workflow, lists required artifacts (task.md, implementation_plan.md, walkthrough.md, metadata, resolved snapshots), scoring rubrics, heuristics, and a full report template, covering inputs and expected outputs."
+    },
+    "executability": {
+      "level": "Good",
+      "reason": "This is an instruction-only skill with concrete actionable steps (exact artifact names, fields to extract, scoring rules, and output file path session_analysis_report.md) that an agent can follow using typical LLM/file-access capabilities."
+    },
+    "cost_awareness": {
+      "level": "Good",
+      "reason": "The task is primarily file analysis and report generation (no heavy compute or external services referenced), so it is inherently low-cost even though the doc does not explicitly prescribe batching or rate limits."
+    },
+    "maintainability": {
+      "level": "Good",
+      "reason": "The workflow is modular and well-structured (clearly separated steps, confidence levels, and report sections) with defined outputs and mapping from observations to recommendations, making it straightforward to update or extend."
+    }
+  }
+}

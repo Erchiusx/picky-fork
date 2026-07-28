@@ -1,0 +1,83 @@
+cabal-version:   3.14
+name:            picky-fork
+version:         0.1.0.0
+license:         GPL-3.0-or-later
+license-file:    LICENSE
+maintainer:      zeyue_jia@u.nus.edu
+author:          Erchius
+homepage:        https://github.com/Erchiusx/picky-fork
+category:        Agent
+build-type:      Simple
+extra-doc-files: CHANGELOG.md
+
+library
+    exposed-modules:
+        Agent.Backends.GPT
+        Agent.Backends.Gemini
+        Agent.SSL
+        Agent.PickyFork.Llm
+        Agent.PickyFork.Llm.Content
+        Agent.PickyFork.Llm.Tool
+        Agent.PickyFork.Llm.Transport
+        Agent.PickyFork.Llm.Transport.Http
+        Agent.PickyFork.Types
+        Agent.PickyFork.Agentic
+        Agent.PickyFork.Agentic.Types
+        Agent.PickyFork.Agentic.Runner
+        Agent.PickyFork.Agentic.Workflow
+    other-modules:
+        Agent.SSL.Internal
+    hs-source-dirs:   lib
+    default-language: GHC2024
+    default-extensions:
+        OverloadedStrings
+        GeneralizedNewtypeDeriving
+        AllowAmbiguousTypes
+    ghc-options:      -Wall
+    build-depends:
+        aeson,
+        async,
+        base ^>=4.21.0.0,
+        bytestring,
+        case-insensitive,
+        containers,
+        directory,
+        filepath,
+        http-client,
+        http-client-tls,
+        http-types,
+        mtl,
+        text,
+        unordered-containers
+
+executable picky-fork
+    main-is:          Main.hs
+    hs-source-dirs:   src
+    default-language: GHC2024
+    ghc-options:      -Wall
+    build-depends:
+        base ^>=4.21.0.0,
+        optparse-applicative,
+        picky-fork
+
+test-suite picky-fork-test
+    type:             exitcode-stdio-1.0
+    main-is:          Main.hs
+    hs-source-dirs:   test
+    default-language: GHC2024
+    default-extensions:
+        OverloadedStrings
+    ghc-options:      -Wall
+    build-depends:
+        base ^>=4.21.0.0,
+        aeson,
+        bytestring,
+        case-insensitive,
+        containers,
+        directory,
+        filepath,
+        text,
+        http-client,
+        http-client-tls,
+        http-types,
+        picky-fork
