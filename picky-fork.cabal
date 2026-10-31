@@ -23,6 +23,9 @@ library
         Agent.PickyFork.Types
         Agent.PickyFork.Agentic
         Agent.PickyFork.Agentic.Types
+        Agent.PickyFork.Agentic.Delegation
+        Agent.PickyFork.Agentic.Loop
+        Agent.PickyFork.Agentic.Subagent
         Agent.PickyFork.Agentic.Runner
         Agent.PickyFork.Agentic.Workflow
     other-modules:
@@ -80,4 +83,20 @@ test-suite picky-fork-test
         http-client,
         http-client-tls,
         http-types,
+        picky-fork
+
+test-suite picky-fork-runtime-test
+    type:             exitcode-stdio-1.0
+    main-is:          Main.hs
+    hs-source-dirs:   test-runtime
+    default-language: GHC2024
+    default-extensions: OverloadedStrings
+    ghc-options:      -Wall -threaded
+    build-depends:
+        aeson,
+        base ^>=4.21.0.0,
+        bytestring,
+        containers,
+        mtl,
+        text,
         picky-fork

@@ -26,6 +26,7 @@ module Agent.PickyFork.Agentic.Types
   , evalAgentic
   , execAgentic
   , tellEvent
+  , initialAgentState
   )
 where
 
@@ -39,6 +40,7 @@ import Agent.PickyFork.Llm
   , ToolName
   , ToolOutput
   , ToolSpec
+  , emptyHistory
   )
 import Agent.SSL
   ( GraphNodeRef
@@ -125,9 +127,30 @@ data ForkRequest = ForkRequest
 
 data RunningSubagent = RunningSubagent
   { runningSubagentRequest :: ForkRequest
-  , runningSubagentHandle :: Async (Either AgentError AgentRunResult)
+  , runningSubagentHandle
+      :: Async (Either AgentError (AgentRunResult, [AgentEvent]))
   }
   deriving stock Generic
+
+initialAgentState :: AgentState
+initialAgentState =
+  AgentState
+    { stateRunningSubagents = mempty
+    , stateHistoryTrace = HistoryTrace []
+    , stateOwnHistory = emptyHistory
+    , stateActiveTools = mempty
+    , stateActiveToolCalls = mempty
+    , stateParallelToolCalls = mempty
+    , stateCompletedToolOutputs = mempty
+    , stateNodeStatuses = mempty
+    , stateEdgeDecisions = []
+    , stateReadyNodes = []
+    , stateScheduledNodes = []
+    , stateProducedArtifacts = []
+    , stateLastLlmRequest = Nothing
+    , stateLastLlmResponse = Nothing
+    , stateBudget = BudgetState Nothing 0 Nothing 0 Nothing 0
+    }
 
 data NodeRunStatus
   = NodeNotStarted

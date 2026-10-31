@@ -3,6 +3,9 @@ module Agent.PickyFork.Agentic.Runner
   , pickHistory
   , pickHistoryWith
   , buildForkRequest
+  , buildForkRequestWith
+  , selectedHistory
+  , availableHistory
   , executeNodeTask
   , appendHistorySegment
   , segmentsForNode
@@ -13,7 +16,15 @@ module Agent.PickyFork.Agentic.Runner
 where
 
 import Agent.PickyFork.Agentic.Types
-import Agent.PickyFork.Llm (LlmHistory)
+import Agent.PickyFork.Llm
+  ( LlmHistory (..)
+  , LlmInputItem (..)
+  , LlmResponseItem (..)
+  , ToolCall (..)
+  , ToolOutput (..)
+  , combineHistories
+  , historyInputItems
+  )
 import Agent.SSL
   ( EdgeKind (LogicStepNext, SceneNext)
   , GraphNodeRef
@@ -22,7 +33,8 @@ import Agent.SSL
   , flowEdges
   )
 import Control.Monad.Except (catchError, throwError)
-import Control.Monad.RWS.Strict (ask, get, modify)
+import Control.Monad.RWS.Strict (ask, get, local, modify)
+import Data.List (nubBy)
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import GHC.Generics (Generic)
@@ -42,9 +54,8 @@ pickHistory target = do
 pickHistoryWith :: HistorySelectionPolicy -> ForkTarget -> Agentic PickedHistory
 pickHistoryWith policy target = do
   env <- ask
-  state <- get
+  allSegments <- availableHistory
   let
-    allSegments = envProvidedHistory env <> traceSegments (stateHistoryTrace state)
     node = forkTargetNode target
     selectedSegments =
       case policy of
@@ -70,10 +81,50 @@ pickHistoryWith policy target = do
       , pickedSegments = selectedSegments
       }
 
+-- | Available node-owned histories, including the running parent's delta.
+availableHistory :: Agentic [HistorySegment]
+availableHistory = do
+  env <- ask
+  state <- get
+  let
+    -- A fork may happen inside a running parent's tool handler, before its
+    -- segment is committed. Expose only its own delta, not its inherited prefix.
+    currentOwnItems =
+      drop
+        (length (historyInputItems (selectedHistory (envProvidedHistory env))))
+        (historyInputItems (stateOwnHistory state))
+    runningSegment =
+      [ HistorySegment
+          (envCurrentNode env)
+          (LlmHistory (completedItems currentOwnItems) [])
+          Nothing
+      | Map.lookup (pointerNode (envCurrentNode env)) (stateNodeStatuses state)
+          == Just (NodeRunning (identityRunId (envIdentity env)))
+      , not (null currentOwnItems)
+      ]
+    allSegments =
+      reverse
+        ( nubBy
+            (\a b -> segmentNode a == segmentNode b)
+            ( reverse
+                ( envProvidedHistory env
+                    <> traceSegments (stateHistoryTrace state)
+                    <> runningSegment
+                )
+            )
+        )
+  pure allSegments
+
 buildForkRequest :: ForkId -> ForkTarget -> Agentic ForkRequest
 buildForkRequest forkId target = do
   env <- ask
-  picked <- pickHistory target
+  buildForkRequestWith (envHistorySelectionPolicy env) forkId target
+
+buildForkRequestWith
+  :: HistorySelectionPolicy -> ForkId -> ForkTarget -> Agentic ForkRequest
+buildForkRequestWith policy forkId target = do
+  env <- ask
+  picked <- pickHistoryWith policy target
   let request =
         ForkRequest
           { forkRequestId = forkId
@@ -84,12 +135,19 @@ buildForkRequest forkId target = do
   tellEvent (HistorySelected forkId (pickedSegments picked))
   pure request
 
+selectedHistory :: [HistorySegment] -> LlmHistory
+selectedHistory = combineHistories . map segmentHistory
+
 executeNodeTask
   :: AgentNodePointer
   -> Agentic LlmHistory
   -> Agentic AgentRunResult
 executeNodeTask node task = do
   env <- ask
+  picked <-
+    local
+      (\e -> e{envCurrentNode = node})
+      (pickHistory (ForkTarget (pointerNode node) (pointerAttempt node)))
   let
     runId = identityRunId (envIdentity env)
     nodeRef = pointerNode node
@@ -99,10 +157,14 @@ executeNodeTask node task = do
         state
           { stateNodeStatuses =
               Map.insert nodeRef (NodeRunning runId) (stateNodeStatuses state)
+          , stateOwnHistory = selectedHistory (pickedSegments picked)
           }
     )
   ( do
-      history <- task
+      history <-
+        local
+          (\e -> e{envCurrentNode = node, envProvidedHistory = pickedSegments picked})
+          task
       let segment =
             HistorySegment
               { segmentNode = node
@@ -199,3 +261,13 @@ unique = go Set.empty
   go seen (x : xs)
     | Set.member x seen = go seen xs
     | otherwise = x : go (Set.insert x seen) xs
+
+-- Pending calls (notably the fork itself) cannot be replayed without outputs.
+completedItems :: [LlmInputItem] -> [LlmInputItem]
+completedItems items = filter complete items
+ where
+  outputIds =
+    [toolOutputCallId output | InputToolOutput output <- items]
+      <> [toolOutputCallId output | InputResponse (ResponseToolOutput output) <- items]
+  complete (InputResponse (ResponseToolCall call)) = toolCallId call `elem` outputIds
+  complete _ = True

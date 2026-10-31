@@ -12,6 +12,7 @@ import Control.Applicative ((<|>))
 import Data.Aeson
   ( Value (..)
   , decodeStrict'
+  , encode
   , object
   , withArray
   , withObject
@@ -20,6 +21,7 @@ import Data.Aeson
   , (.=)
   )
 import Data.Aeson.Types (Parser, parseMaybe)
+import Data.ByteString.Lazy qualified as BL
 import Data.Foldable (toList)
 import Data.Maybe (catMaybes)
 import Data.Text (Text)
@@ -91,6 +93,34 @@ gptInputItem (InputToolOutput output) =
     , "call_id" .= unToolCallId (toolOutputCallId output)
     , "output" .= toolOutputText output
     ]
+gptInputItem (InputResponse (ResponseMessage message)) =
+  object
+    [ "role" .= roleText (messageRole message)
+    , "content" .= map outputPart (messageContent message)
+    ]
+ where
+  outputPart (TextPart text) = object ["type" .= String "output_text", "text" .= text]
+  outputPart part = gptContentPart part
+gptInputItem (InputResponse (ResponseToolCall call)) =
+  object
+    [ "type" .= String "function_call"
+    , "call_id" .= unToolCallId (toolCallId call)
+    , "name" .= unToolName (toolCallName call)
+    , "arguments" .= jsonText (toolCallArguments call)
+    ]
+gptInputItem (InputResponse (ResponseToolOutput output)) = gptInputItem (InputToolOutput output)
+gptInputItem (InputResponse (ResponseOther raw)) = raw
+gptInputItem (InputResponse ResponseReasoning{reasoningSummary, reasoningEncryptedContent}) =
+  object
+    ( [ "type" .= String "reasoning"
+      , "summary"
+          .= map
+            (\s -> object ["type" .= String "summary_text", "text" .= s])
+            reasoningSummary
+      ]
+        <> [ "encrypted_content" .= encrypted | Just encrypted <- [reasoningEncryptedContent]
+           ]
+    )
 
 gptContentPart :: ContentPart -> Value
 gptContentPart (TextPart text) =
@@ -108,7 +138,7 @@ gptContentPart (AudioPart media) =
 gptContentPart (FilePart media) =
   object ["type" .= String "input_file", "file_url" .= mediaRefText media]
 gptContentPart (JsonPart value) =
-  object ["type" .= String "input_text", "text" .= Text.pack (show value)]
+  object ["type" .= String "input_text", "text" .= jsonText value]
 gptContentPart (ToolCallPart call) =
   object
     [ "type" .= String "function_call"
@@ -246,7 +276,7 @@ toolOutputContentText :: ToolOutputContent -> Text
 toolOutputContentText (ToolOutputText text) = text
 toolOutputContentText (ToolOutputImage url) = url
 toolOutputContentText (ToolOutputAudio url) = url
-toolOutputContentText (ToolOutputJson value) = Text.pack (show value)
+toolOutputContentText (ToolOutputJson value) = jsonText value
 toolOutputContentText (ToolOutputEncrypted text) = text
 
 mapMaybeTool :: (a -> Maybe b) -> [a] -> [b]
@@ -255,3 +285,6 @@ mapMaybeTool f = catMaybes . fmap f
 fromMaybeOther :: Value -> Maybe [LlmResponseItem] -> [LlmResponseItem]
 fromMaybeOther raw Nothing = [ResponseOther raw]
 fromMaybeOther _ (Just items) = items
+
+jsonText :: Value -> Text
+jsonText = Text.decodeUtf8 . BL.toStrict . encode

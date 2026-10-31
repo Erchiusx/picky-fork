@@ -11,6 +11,7 @@ import Agent.PickyFork.Llm.Transport
 import Control.Applicative ((<|>))
 import Data.Aeson
   ( Value (..)
+  , encode
   , object
   , withArray
   , withObject
@@ -19,10 +20,12 @@ import Data.Aeson
   , (.=)
   )
 import Data.Aeson.Types (Pair, Parser, parseMaybe)
+import Data.ByteString.Lazy qualified as BL
 import Data.Foldable (toList)
 import Data.Maybe (catMaybes)
 import Data.Text (Text)
 import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
 
 data Gemini transport = Gemini
   { geminiApiKey :: Text
@@ -88,6 +91,18 @@ geminiInputItem (InputToolOutput output) =
     [ "role" .= String "user"
     , "parts" .= [geminiToolOutput output]
     ]
+geminiInputItem (InputResponse (ResponseMessage message)) = geminiInputItem (InputMessage message)
+geminiInputItem (InputResponse (ResponseToolCall call)) =
+  object
+    ["role" .= String "model", "parts" .= [geminiContentPart (ToolCallPart call)]]
+geminiInputItem (InputResponse (ResponseToolOutput output)) = geminiInputItem (InputToolOutput output)
+geminiInputItem (InputResponse (ResponseOther raw)) =
+  object ["role" .= String "model", "parts" .= [raw]]
+geminiInputItem (InputResponse ResponseReasoning{reasoningSummary}) =
+  object
+    [ "role" .= String "model"
+    , "parts" .= map (\s -> object ["text" .= s, "thought" .= True]) reasoningSummary
+    ]
 
 geminiContentPart :: ContentPart -> Value
 geminiContentPart (TextPart text) = object ["text" .= text]
@@ -95,7 +110,7 @@ geminiContentPart (LinkPart url) = object ["text" .= url]
 geminiContentPart (ImagePart media _) = geminiFilePart media
 geminiContentPart (AudioPart media) = geminiFilePart media
 geminiContentPart (FilePart media) = geminiFilePart media
-geminiContentPart (JsonPart value) = object ["text" .= Text.pack (show value)]
+geminiContentPart (JsonPart value) = object ["text" .= Text.decodeUtf8 (BL.toStrict (encode value))]
 geminiContentPart (ToolCallPart call) =
   object
     [ "functionCall"

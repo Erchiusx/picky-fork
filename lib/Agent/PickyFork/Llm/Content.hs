@@ -12,6 +12,8 @@ module Agent.PickyFork.Llm.Content
   , emptyHistory
   , appendInputItem
   , appendResponseItem
+  , historyInputItems
+  , combineHistories
   )
 where
 
@@ -80,6 +82,7 @@ data LlmMessage = LlmMessage
 data LlmInputItem
   = InputMessage LlmMessage
   | InputToolOutput ToolOutput
+  | InputResponse LlmResponseItem
   deriving stock (Eq, Show, Generic)
 
 data LlmResponseItem
@@ -113,6 +116,15 @@ appendInputItem item history =
 appendResponseItem :: LlmResponseItem -> LlmHistory -> LlmHistory
 appendResponseItem item history =
   history{historyResponses = historyResponses history <> [item]}
+
+-- Completed turns live in historyInputs in chronological order. The response
+-- field is an optional, not-yet-replayed tail, never a second copy of the log.
+historyInputItems :: LlmHistory -> [LlmInputItem]
+historyInputItems history =
+  historyInputs history <> map InputResponse (historyResponses history)
+
+combineHistories :: [LlmHistory] -> LlmHistory
+combineHistories histories = LlmHistory (concatMap historyInputItems histories) []
 
 instance ToJSON MessageId
 instance FromJSON MessageId

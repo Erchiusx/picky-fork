@@ -32,7 +32,7 @@ import Agent.SSL
   , skillId
   )
 import Control.Monad.Except (throwError)
-import Control.Monad.RWS.Strict (get)
+import Control.Monad.RWS.Strict (get, local)
 import Data.Foldable (traverse_)
 import Data.Map.Strict qualified as Map
 import Data.Text (Text)
@@ -73,7 +73,8 @@ runWorkflow config skill = do
       (throwWorkflowError "SSL skill has no entry scene")
       pure
       (skillEntrySceneId (flowSkill graph))
-  runFrom config graph sid [] (workflowMaxTransitions config) (SceneRef sid entryScene)
+  local (\env -> env{envExecutionGraph = graph}) $
+    runFrom config graph sid [] (workflowMaxTransitions config) (SceneRef sid entryScene)
 
 runFrom
   :: WorkflowConfig
